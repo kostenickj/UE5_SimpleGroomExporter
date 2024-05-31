@@ -66,8 +66,8 @@ bool USimpleGroomExporter::ExportBinary(UObject* Object, const TCHAR* Type, FArc
 		Abc::V3fArraySample(AllPositions.data(), AllPositions.size())
 		, Abc::Int32ArraySample(NumVertices.data(), NumVertices.size())
 		, kCubic // Curve type: cubic for this example
-		);
-	OCurves CurvesObj(TopLevelObj, std::string(TCHAR_TO_UTF8(*Groom->GetName());
+	);
+	OCurves CurvesObj(TopLevelObj, std::string(TCHAR_TO_UTF8(*Groom->GetName())));
 	OCurvesSchema& CurvesSchema = CurvesObj.getSchema();
 	CurvesSchema.set(CurveSample);
 	return true;
