@@ -42,10 +42,13 @@ bool USimpleGroomExporter::ExportBinary(UObject* Object, const TCHAR* Type, FArc
 	OObject TopLevelObj = Archive.getTop();
 
 	int32 GlobalVertexIndex = 0;
+
+	std::vector<Imath::V3f> AllPositions;
+	std::vector<int32_t> NumVertices;
+
 	for (int32 StrandIndex = 0; StrandIndex < TotalStrands; StrandIndex++)
 	{
 		FStrandID StrandID = FStrandID(StrandIndex);
-
 		const int32 NumVertsInStrand = NumVertsPerStrand.Get(StrandID);
 		std::vector<Imath::V3f> PositionsForStrand;
 		for (int32 LocalVertexIndex = 0; LocalVertexIndex < NumVertsInStrand; LocalVertexIndex++)
@@ -54,20 +57,18 @@ bool USimpleGroomExporter::ExportBinary(UObject* Object, const TCHAR* Type, FArc
 			PositionsForStrand.push_back(Imath::V3f(Position.X, Position.Y, Position.Z));
 			GlobalVertexIndex++;
 		}
-		std::vector<int32_t> NumVertices = {static_cast<int32_t>(PositionsForStrand.size())};
-
-		OCurvesSchema::Sample CurveSample
-		(
-			Abc::V3fArraySample(PositionsForStrand.data(), PositionsForStrand.size())
-			, Abc::Int32ArraySample(NumVertices.data(), NumVertices.size())
-			, kCubic // Curve type: cubic for this example TODO kLinear ?
-		);
-		
-		std::string CurveName = "strand" + std::to_string(StrandIndex + 1);
-		OCurves CurvesObj(TopLevelObj, CurveName);
-		OCurvesSchema& CurvesSchema = CurvesObj.getSchema();
-		CurvesSchema.set(CurveSample);
+		AllPositions.insert(AllPositions.end(), PositionsForStrand.begin(), PositionsForStrand.end());
+		NumVertices.push_back(static_cast<int32_t>(PositionsForStrand.size()));
 	}
-	
+
+	OCurvesSchema::Sample CurveSample
+	(
+		Abc::V3fArraySample(AllPositions.data(), AllPositions.size())
+		, Abc::Int32ArraySample(NumVertices.data(), NumVertices.size())
+		, kCubic // Curve type: cubic for this example
+		);
+	OCurves CurvesObj(TopLevelObj, std::string(TCHAR_TO_UTF8(*Groom->GetName());
+	OCurvesSchema& CurvesSchema = CurvesObj.getSchema();
+	CurvesSchema.set(CurveSample);
 	return true;
 }
