@@ -1,6 +1,11 @@
 ﻿#include "SimpleGroomExporter.h"
 
+#include "HAL/Platform.h"
 #include "GroomAsset.h"
+
+#if PLATFORM_WINDOWS
+#include "Windows/AllowWindowsPlatformTypes.h"
+#endif
 
 THIRD_PARTY_INCLUDES_START
 #include <Alembic/AbcGeom/All.h>
@@ -11,13 +16,11 @@ THIRD_PARTY_INCLUDES_START
 THIRD_PARTY_INCLUDES_END
 
 #if PLATFORM_WINDOWS
-#include "Windows/AllowWindowsPlatformTypes.h"
-//#include "Windows/HideWindowsPlatformTypes.h"
+#include "Windows/HideWindowsPlatformTypes.h"
 #endif
 
 using namespace Alembic::Abc;
 using namespace Alembic::AbcGeom;
-
 
 USimpleGroomExporter::USimpleGroomExporter()
 {
