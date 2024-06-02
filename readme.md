@@ -1,7 +1,8 @@
 Unreal Engine 5 groom exporter to alembic.
 
 just right click the groom asset -> asset actions -> export
-very bare bones at the moment, so pull requests are welcome! 
+
+the export very bare bones at the moment, it only exports base curves without hair attributes like width etc, so pull requests are welcome! 
 
 once you import into your DDC you can convert to blender hair curves, particle systems etc.
 
