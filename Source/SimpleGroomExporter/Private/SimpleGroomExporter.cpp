@@ -146,7 +146,7 @@ bool USimpleGroomExporter::ExportBinary(UObject* Object, const TCHAR* Type, FArc
     }
     catch (const std::exception& Ex)
     {
-        UE_LOG(LogSimpleGroomExporter, Error, TEXT("Alembic export failed: %hs"), UTF8_TO_TCHAR(Ex.what()));
+        UE_LOG(LogSimpleGroomExporter, Error, TEXT("Alembic export failed: %s"), UTF8_TO_TCHAR(Ex.what()));
         return false;
     }
     catch (...)
