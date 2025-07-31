@@ -83,7 +83,7 @@ bool USimpleGroomExporter::ExportBinary(UObject* Object, const TCHAR* Type, FArc
         // Iterate over each hair group
         for (const FHairDescriptionGroup& HairGroupInfo : HairGroups.HairGroups)
         {
-            const FHairStrandsDatas& StrandData = HairGroupInfo.Strands;
+            const FHairStrandsRawDatas& StrandData = HairGroupInfo.Strands;
             const FHairStrandsCurves& StrandCurves = StrandData.StrandsCurves;
             const FHairStrandsPoints& StrandPoints = StrandData.StrandsPoints;
             const TArray<FVector3f>& Positions = StrandPoints.PointsPosition;

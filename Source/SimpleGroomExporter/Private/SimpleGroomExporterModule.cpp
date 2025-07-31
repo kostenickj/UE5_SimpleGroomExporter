@@ -16,4 +16,4 @@ void FSimpleGroomExporterModule::ShutdownModule()
 
 #undef LOCTEXT_NAMESPACE
 
-IMPLEMENT_MODULE(FSimpleGroomExporterModule, SimpleGroomExporterEditorMode)
+IMPLEMENT_MODULE(FSimpleGroomExporterModule, SimpleGroomExporter)
