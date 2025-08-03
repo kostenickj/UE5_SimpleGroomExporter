@@ -91,44 +91,67 @@ bool USimpleGroomExporter::ExportBinary(UObject* Object, const TCHAR* Type, FArc
             // Prepare containers for Alembic data
             std::vector<Imath::V3f> AllPositions;
             std::vector<int32_t> VerticesPerStrand;
+            std::vector<float32_t> AllWidths;
 
-            // Reserve space to optimize memory allocations
+            // Reserve space to optimize allocations.
             AllPositions.reserve(Positions.Num());
             VerticesPerStrand.reserve(StrandCurves.CurvesCount.Num());
+            AllWidths.reserve(Positions.Num());
 
             int32 GroupVertexIndex = 0;
             const int32 NumStrands = StrandCurves.CurvesCount.Num();
 
+            // Loop over each strand in the current hair group.
             for (int32 StrandIndex = 0; StrandIndex < NumStrands; ++StrandIndex)
             {
                 int32 NumVertsInStrand = StrandCurves.CurvesCount[StrandIndex];
                 if (NumVertsInStrand <= 0)
                 {
-                    UE_LOG(LogSimpleGroomExporter, Warning, TEXT("Strand %d has non-positive vertex count (%d). Skipping."), StrandIndex, NumVertsInStrand);
+                    UE_LOG(LogSimpleGroomExporter, Warning,
+                           TEXT("Strand %d has non-positive vertex count (%d). Skipping."),
+                           StrandIndex, NumVertsInStrand);
                     continue;
                 }
 
-                // Collect positions for the current strand
+                // Add the positions for this strand.
                 for (int32 VertexIndex = 0; VertexIndex < NumVertsInStrand; ++VertexIndex)
                 {
                     if (GroupVertexIndex >= Positions.Num())
                     {
-                        UE_LOG(LogSimpleGroomExporter, Error, TEXT("Vertex index out of bounds: %d >= %d"), GroupVertexIndex, Positions.Num());
+                        UE_LOG(LogSimpleGroomExporter, Error,
+                               TEXT("Vertex index out of bounds: %d >= %d"),
+                               GroupVertexIndex, Positions.Num());
                         return false;
                     }
+
                     const FVector3f& Pos = Positions[GroupVertexIndex++];
                     AllPositions.emplace_back(Pos.X, Pos.Y, Pos.Z);
+
+                    // For each vertex, assign a simple width (e.g., 0.01).
+                    // Adjust based on desired hair thickness in Blender.
+                    AllWidths.push_back(0.01f);
                 }
 
                 VerticesPerStrand.emplace_back(NumVertsInStrand);
             }
 
-            // Create Alembic curve sample
+            // Create an Alembic curves sample
             OCurvesSchema::Sample CurveSample(
                 V3fArraySample(AllPositions.data(), AllPositions.size()),
                 Int32ArraySample(VerticesPerStrand.data(), VerticesPerStrand.size()),
-                kCubic // Type of curve; can be adjusted as needed
+                kCubic 
             );
+
+            // Provide per-vertex widths:
+            CurveSample.setWidths(
+                OFloatGeomParam::Sample(
+                    FloatArraySample(AllWidths.data(), AllWidths.size()),
+                    kVertexScope
+                )
+            );
+            // Specify the basis and wrap mode for the curves. This fixes the cris-crossing of the hair in blender. 
+            CurveSample.setBasis(kNoBasis);
+            CurveSample.setWrap(kNonPeriodic);
 
             // Define the name for the Alembic curves object
             std::string CurveName = std::string(TCHAR_TO_UTF8(*HairGroupInfo.Info.GroupName.ToString()));
