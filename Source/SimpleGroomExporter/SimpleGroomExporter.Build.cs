@@ -16,8 +16,7 @@ public class SimpleGroomExporter : ModuleRules
 				// ... add public include paths required here ...
 			}
 		);
-
-		// OptimizeCode = CodeOptimization.Never;
+		//OptimizeCode = CodeOptimization.Never;
 
 
 		PrivateIncludePaths.AddRange(
