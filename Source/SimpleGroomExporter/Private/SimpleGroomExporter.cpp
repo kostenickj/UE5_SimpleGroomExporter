@@ -9,6 +9,9 @@
 #include "Misc/FeedbackContext.h"
 #include "Serialization/Archive.h"
 #include "UObject/Object.h"
+#include "Framework/Application/SlateApplication.h"
+#include "Widgets/SWindow.h"
+#include "Widgets/Layout/SUniformGridPanel.h"
 
 #if PLATFORM_WINDOWS
 #include "Windows/AllowWindowsPlatformTypes.h"
@@ -30,6 +33,147 @@ using namespace Alembic::AbcGeom;
 
 // Define a logging category for the exporter
 DEFINE_LOG_CATEGORY_STATIC(LogSimpleGroomExporter, Log, All);
+
+#define LOCTEXT_NAMESPACE "SimpleGroomExporter"
+
+class SSimpleGroomExporterExportDialog : public SWindow
+{
+	public:
+		struct FResult
+		{
+			EAppReturnType::Type RetType;
+			USimpleGroomExportOptions* Options = nullptr;
+
+			FResult() :
+			RetType(EAppReturnType::Type::Cancel)
+			{
+			}
+		};
+
+
+		SLATE_BEGIN_ARGS(SSimpleGroomExporterExportDialog)
+			{
+			}
+
+		SLATE_END_ARGS()
+
+		SSimpleGroomExporterExportDialog()
+		: Config(nullptr)
+		{
+		}
+
+		void Construct
+		(
+			const FArguments& InArgs
+		)
+		{
+			FPropertyEditorModule& PropertyEditorModule = FModuleManager::GetModuleChecked<FPropertyEditorModule>("PropertyEditor");
+			Result = FResult();
+			FDetailsViewArgs DetailsViewArgs;
+			DetailsViewArgs.bUpdatesFromSelection = false;
+			DetailsViewArgs.bLockable = false;
+			DetailsViewArgs.bAllowSearch = false;
+			DetailsViewArgs.NameAreaSettings = FDetailsViewArgs::HideNameArea;
+			DetailsViewArgs.bHideSelectionTip = true;
+			DetailsViewArgs.NotifyHook = nullptr;
+			DetailsViewArgs.bSearchInitialKeyFocus = false;
+			DetailsViewArgs.ViewIdentifier = NAME_None;
+			DetailsViewArgs.DefaultsOnlyVisibility = EEditDefaultsOnlyNodeVisibility::Automatic;
+			DetailsViewArgs.bShowOptions = false;
+			DetailsViewArgs.bAllowMultipleTopLevelObjects = true;
+			SettingsPanel = PropertyEditorModule.CreateDetailView(DetailsViewArgs);
+			Config = NewObject<USimpleGroomExportOptions>();
+			SettingsPanel->SetObject(Config);
+
+			SWindow::Construct
+			(
+				SWindow::FArguments()
+				.Title(LOCTEXT("SSimpleGroomExporterOptions", "Export Options"))
+				.SupportsMinimize(false)
+				.SupportsMaximize(false)
+				.ClientSize(FVector2D(900, 500))
+				[
+					SNew(SVerticalBox)
+					+ SVerticalBox::Slot() // Add user input block
+					.Padding(2)
+					[
+						SNew(SBorder)
+						.BorderImage(FAppStyle::GetBrush("ToolPanel.GroupBorder"))
+						[
+							SNew(SVerticalBox)
+							+ SVerticalBox::Slot()
+							.AutoHeight()
+							.Padding(0, 10)
+							[
+								SettingsPanel->AsShared()
+							]
+							+ SVerticalBox::Slot()
+							.AutoHeight()
+							[
+								SNew(SSeparator)
+							]
+						]
+					]
+					+ SVerticalBox::Slot()
+					.AutoHeight()
+					.HAlign(HAlign_Right)
+					.Padding(5)
+					[
+						SNew(SUniformGridPanel)
+						.SlotPadding(FAppStyle::GetMargin("StandardDialog.SlotPadding"))
+						.MinDesiredSlotWidth(FAppStyle::GetFloat("StandardDialog.MinDesiredSlotWidth"))
+						.MinDesiredSlotHeight(FAppStyle::GetFloat("StandardDialog.MinDesiredSlotHeight"))
+						+ SUniformGridPanel::Slot(0, 0)
+						.HAlign(HAlign_Left)
+						[
+							SNew(SButton)
+							.HAlign(HAlign_Left)
+							.ContentPadding(FAppStyle::GetMargin("StandardDialog.ContentPadding"))
+							.Text(LOCTEXT("Cancel", "Cancel"))
+							.OnClicked(this, &SSimpleGroomExporterExportDialog::OnButtonClick, EAppReturnType::Cancel)
+							.IsEnabled(true)
+						]
+						+ SUniformGridPanel::Slot(2, 0)
+						[
+							SNew(SButton)
+							.HAlign(HAlign_Center)
+							.ContentPadding(FAppStyle::GetMargin("StandardDialog.ContentPadding"))
+							.Text(LOCTEXT("ExportText", "Export"))
+							.IsEnabled_Lambda
+							(
+								[this]()
+								{
+									return true;
+								}
+							)
+							.OnClicked(this, &SSimpleGroomExporterExportDialog::OnButtonClick, EAppReturnType::Continue)
+						]
+
+					]
+				]
+			);
+		}
+
+		FResult ShowModal()
+		{
+			GEditor->EditorAddModalWindow(SharedThis(this));
+			return this->Result;
+		}
+		
+	private:
+		USimpleGroomExportOptions* Config;
+		TSharedPtr<IDetailsView> SettingsPanel;
+		FResult Result;
+
+		FReply OnButtonClick(EAppReturnType::Type ButtonID)
+		{
+			Result.RetType = ButtonID;
+			Result.Options = Config;
+			RequestDestroyWindow();
+			return FReply::Handled();
+		}
+};
+
 
 USimpleGroomExporter::USimpleGroomExporter()
 {
@@ -64,6 +208,14 @@ bool USimpleGroomExporter::ExportBinary(UObject* Object, const TCHAR* Type, FArc
 		return false;
 	}
 
+	// Show export options modal dialog
+	TSharedRef<SSimpleGroomExporterExportDialog> OptionsModal = SNew(SSimpleGroomExporterExportDialog);
+	SSimpleGroomExporterExportDialog::FResult ExportOptions = OptionsModal->ShowModal();
+	if (ExportOptions.RetType == EAppReturnType::Cancel)
+	{
+		return false;
+	}
+
 	// Initialize Alembic archive
 	try
 	{
@@ -74,7 +226,7 @@ bool USimpleGroomExporter::ExportBinary(UObject* Object, const TCHAR* Type, FArc
 
 		// Retrieve hair groups from the groom asset
 		const FHairDescriptionGroups& HairGroups = Groom->GetHairDescriptionGroups();
-		
+
 
 		if (HairGroups.HairGroups.Num() == 0)
 		{
@@ -82,10 +234,11 @@ bool USimpleGroomExporter::ExportBinary(UObject* Object, const TCHAR* Type, FArc
 			return false;
 		}
 
-		const bool bUseRenderdataForExport = true;
+		// Use the option selected by the user from the modal dialog
+		const bool bUseRenderdataForExport = ExportOptions.Options->bUseRenderData;
 
-		// TODO, consider using raw data hair desc isntead of this and use the vertex attributes and shit
-		// see how GenerateHairCardGenGroomData does it....
+		// TODO, consider using raw data hair desc data to export
+		// see how GenerateHairCardGenGroomData access it....
 		auto HairDesc = Groom->GetHairDescription();
 
 		// Iterate over each hair group
@@ -99,8 +252,8 @@ bool USimpleGroomExporter::ExportBinary(UObject* Object, const TCHAR* Type, FArc
 			{
 				Groom->GetHairStrandsDatas(GroupIdx, StrandData, GuidesData);
 			}
-			
-			const FHairStrandsCurves& StrandCurves = bUseRenderdataForExport ?  StrandData.StrandsCurves : RawStrandData.StrandsCurves;
+
+			const FHairStrandsCurves& StrandCurves = bUseRenderdataForExport ? StrandData.StrandsCurves : RawStrandData.StrandsCurves;
 			const FHairStrandsPoints& StrandPoints = bUseRenderdataForExport ? StrandData.StrandsPoints : RawStrandData.StrandsPoints;
 			const TArray<FVector3f>& Positions = StrandPoints.PointsPosition;
 
@@ -109,8 +262,8 @@ bool USimpleGroomExporter::ExportBinary(UObject* Object, const TCHAR* Type, FArc
 			std::vector<int32_t> VerticesPerStrand;
 
 			AllPositions.reserve(Positions.Num());
-            VerticesPerStrand.reserve(StrandCurves.CurvesCount.Num());
-			
+			VerticesPerStrand.reserve(StrandCurves.CurvesCount.Num());
+
 
 			const TArray<uint16>& CurvesCounts = StrandCurves.CurvesCount;
 			const TArray<uint32>& CurvesOffsets = StrandCurves.CurvesOffset;
@@ -118,30 +271,30 @@ bool USimpleGroomExporter::ExportBinary(UObject* Object, const TCHAR* Type, FArc
 			int32 GroupVertexIndex = 0;
 			for (int32 StrandIndex = 0; StrandIndex < NumStrands; ++StrandIndex)
 			{
-                uint32 NumVertsInStrand = CurvesCounts[StrandIndex];
+				uint32 NumVertsInStrand = CurvesCounts[StrandIndex];
 				if (bUseRenderdataForExport)
 				{
-					NumVertsInStrand = NumVertsInStrand-1;
+					NumVertsInStrand = NumVertsInStrand - 1;
 				}
 				if (NumVertsInStrand <= 0)
 				{
-                    UE_LOG(LogSimpleGroomExporter, Warning, TEXT("Strand %d has non-positive vertex count (%d). Skipping."), StrandIndex, NumVertsInStrand);
-                    continue;
+					UE_LOG(LogSimpleGroomExporter, Warning, TEXT("Strand %d has non-positive vertex count (%d). Skipping."), StrandIndex, NumVertsInStrand);
+					continue;
 				}
 
 				// Collect positions for the current strand, curve offsets only seem to be set when using RENDER data, not hair strands raw datas
 				uint32 StartVertexIndex = CurvesOffsets[StrandIndex];
-				
+
 				for (uint32 VertexIndexInStrand = 0; VertexIndexInStrand < NumVertsInStrand; ++VertexIndexInStrand)
 				{
 					uint32 CurrentVertexIndex = bUseRenderdataForExport ? StartVertexIndex + VertexIndexInStrand : GroupVertexIndex;
-                    if (CurrentVertexIndex >= static_cast<uint32>(Positions.Num()))
+					if (CurrentVertexIndex >= static_cast<uint32>(Positions.Num()))
 					{
-                        UE_LOG(LogSimpleGroomExporter, Error, TEXT("Vertex index out of bounds: %d >= %d"), CurrentVertexIndex, Positions.Num());
+						UE_LOG(LogSimpleGroomExporter, Error, TEXT("Vertex index out of bounds: %d >= %d"), CurrentVertexIndex, Positions.Num());
 						return false;
 					}
 					const FVector3f& Pos = Positions[CurrentVertexIndex];
-                    AllPositions.emplace_back(Pos.X, Pos.Y, Pos.Z);
+					AllPositions.emplace_back(Pos.X, Pos.Y, Pos.Z);
 					GroupVertexIndex++;
 				}
 
@@ -151,15 +304,15 @@ bool USimpleGroomExporter::ExportBinary(UObject* Object, const TCHAR* Type, FArc
 			// Create Alembic curve sample
 			OCurvesSchema::Sample CurveSample
 			(
-                V3fArraySample(AllPositions.data(), AllPositions.size()),
-                Int32ArraySample(VerticesPerStrand.data(), VerticesPerStrand.size()),
-                kCubic // Type of curve; can be adjusted as needed
+				V3fArraySample(AllPositions.data(), AllPositions.size())
+				, Int32ArraySample(VerticesPerStrand.data(), VerticesPerStrand.size())
+				, kCubic // Type of curve; can be adjusted as needed
 			);
 
-            // Define the name for the Alembic curves object
+			// Define the name for the Alembic curves object
 			std::string CurveName = std::string(TCHAR_TO_UTF8(*HairGroupInfo.Info.GroupName.ToString()));
 
-            // Create the Alembic curves object and set its schema
+			// Create the Alembic curves object and set its schema
 			OCurves CurvesObj(TopLevelObj, CurveName);
 			OCurvesSchema& CurvesSchema = CurvesObj.getSchema();
 			CurvesSchema.set(CurveSample);
@@ -187,3 +340,5 @@ FString USimpleGroomExporter::GetExportFilePath() const
 {
 	return UExporter::CurrentFilename;
 }
+
+#undef LOCTEXT_NAMESPACE

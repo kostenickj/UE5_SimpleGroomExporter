@@ -2,8 +2,20 @@
 #include "CoreMinimal.h"
 #include "Exporters/Exporter.h"
 #include "SimpleGroomExporter.generated.h"
+
+UCLASS(BlueprintType, Category= "Mask Export")
+class SIMPLEGROOMEXPORTER_API USimpleGroomExportOptions : public UObject
+{
+	public:
+		GENERATED_BODY()
+
+		// Whether to use render data instead of raw data for export
+		UPROPERTY(EditAnywhere, Category = "Export Options", meta = (DisplayName = "Use Render Data", ToolTip="Whether to use render data instead of raw data for export, groom must NOT be decimated"))
+		bool bUseRenderData = false;
+};
+
 UCLASS()
-class USimpleGroomExporter : public UExporter
+class SIMPLEGROOMEXPORTER_API USimpleGroomExporter : public UExporter
 {
 	public:
 		GENERATED_BODY()
